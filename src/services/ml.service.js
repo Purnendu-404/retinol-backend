@@ -32,17 +32,23 @@ async function predictImage(imageUrl) {
             return response.data;
 
         } catch (error) {
+            const status = error.response?.status;
+
             console.error(
                 `ML attempt ${attempt} failed:`,
-                error.response?.status || error.message
+                status || error.message
             );
+
+            // Don't retry client errors such as 400/404.
+            if (status && status >= 400 && status < 500) {
+                throw error;
+            }
 
             if (attempt === MAX_ATTEMPTS) {
                 throw error;
             }
 
             console.log("Waiting 10 seconds before retry...");
-
             await sleep(10000);
         }
     }
