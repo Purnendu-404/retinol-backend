@@ -1,6 +1,10 @@
+const axios = require("axios");
+
+const ML_SERVICE_URL = process.env.ML_SERVICE_URL;
+
 async function waitForML() {
-  const maxWaitTime = 2 * 60 * 1000; // 2 minutes
-  const checkInterval = 10 * 1000;   // check every 10 seconds
+  const maxWaitTime = 2 * 60 * 1000;
+  const checkInterval = 10 * 1000;
 
   const startTime = Date.now();
   let attempt = 1;
@@ -40,3 +44,26 @@ async function waitForML() {
 
   throw new Error("ML service did not become ready within 2 minutes.");
 }
+
+
+async function predictImage(imageUrl) {
+  await waitForML();
+
+  const response = await axios.post(
+    `${ML_SERVICE_URL}/predict-url`,
+    {
+      image_url: imageUrl,
+    },
+    {
+      timeout: 120000,
+    }
+  );
+
+  return response.data;
+}
+
+
+module.exports = {
+  waitForML,
+  predictImage,
+};
