@@ -5,54 +5,70 @@ const ML_SERVICE_URL = process.env.FLASK_URL;
 const sleep = (ms) =>
     new Promise((resolve) => setTimeout(resolve, ms));
 
-async function predictImage(imageUrl) {
-    const MAX_ATTEMPTS = 3;
+
+async function waitForML() {
+    const MAX_ATTEMPTS = 6;
 
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
         try {
             console.log(
-                `ML prediction attempt ${attempt}/${MAX_ATTEMPTS}`
+                `Checking ML service readiness ${attempt}/${MAX_ATTEMPTS}`
             );
 
-            const response = await axios.post(
-                `${ML_SERVICE_URL}/predict-url`,
+            const response = await axios.get(
+                `${ML_SERVICE_URL}/health`,
                 {
-                    image_url: imageUrl
-                },
-                {
-                    headers: {
-                        "Content-Type": "application/json"
-                    },
-                    timeout: 120000
+                    timeout: 30000
                 }
             );
 
-            console.log("ML prediction successful");
-
-            return response.data;
+            if (response.status === 200) {
+                console.log("ML service is ready.");
+                return;
+            }
 
         } catch (error) {
-            const status = error.response?.status;
-
-            console.error(
-                `ML attempt ${attempt} failed:`,
-                status || error.message
+            console.log(
+                "ML service not ready:",
+                error.response?.status || error.message
             );
+        }
 
-            // Don't retry client errors such as 400/404.
-            if (status && status >= 400 && status < 500) {
-                throw error;
-            }
-
-            if (attempt === MAX_ATTEMPTS) {
-                throw error;
-            }
-
-            console.log("Waiting 10 seconds before retry...");
+        if (attempt < MAX_ATTEMPTS) {
+            console.log("Waiting 10 seconds for ML service...");
             await sleep(10000);
         }
     }
+
+    throw new Error("ML service did not become ready.");
 }
+
+
+async function predictImage(imageUrl) {
+
+    // Wake Render/Flask and wait for the ML service.
+    await waitForML();
+
+    console.log("Sending image to ML service...");
+
+    const response = await axios.post(
+        `${ML_SERVICE_URL}/predict-url`,
+        {
+            image_url: imageUrl
+        },
+        {
+            headers: {
+                "Content-Type": "application/json"
+            },
+            timeout: 120000
+        }
+    );
+
+    console.log("ML prediction successful");
+
+    return response.data;
+}
+
 
 module.exports = {
     predictImage
