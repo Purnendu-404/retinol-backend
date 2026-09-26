@@ -1,6 +1,6 @@
 const axios = require("axios");
 
-const ML_SERVICE_URL = "http://127.0.0.1:5001";
+const ML_SERVICE_URL = process.env.FLASK_URL;
 
 async function predictImage(imageUrl) {
     const response = await axios.post(
