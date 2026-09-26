@@ -1,75 +1,42 @@
-const axios = require("axios");
-
-const ML_SERVICE_URL = process.env.FLASK_URL;
-
-const sleep = (ms) =>
-    new Promise((resolve) => setTimeout(resolve, ms));
-
-
 async function waitForML() {
-    const MAX_ATTEMPTS = 6;
+  const maxWaitTime = 2 * 60 * 1000; // 2 minutes
+  const checkInterval = 10 * 1000;   // check every 10 seconds
 
-    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-        try {
-            console.log(
-                `Checking ML service readiness ${attempt}/${MAX_ATTEMPTS}`
-            );
+  const startTime = Date.now();
+  let attempt = 1;
 
-            const response = await axios.get(
-                `${ML_SERVICE_URL}/health`,
-                {
-                    timeout: 30000
-                }
-            );
+  while (Date.now() - startTime < maxWaitTime) {
+    try {
+      console.log(`Checking ML service readiness (attempt ${attempt})`);
 
-            if (response.status === 200) {
-                console.log("ML service is ready.");
-                return;
-            }
+      const response = await axios.get(`${ML_SERVICE_URL}/health`, {
+        timeout: 10000,
+      });
 
-        } catch (error) {
-            console.log(
-                "ML service not ready:",
-                error.response?.status || error.message
-            );
-        }
-
-        if (attempt < MAX_ATTEMPTS) {
-            console.log("Waiting 10 seconds for ML service...");
-            await sleep(10000);
-        }
+      if (response.status === 200) {
+        console.log("ML service is ready");
+        return;
+      }
+    } catch (error) {
+      console.log(
+        `ML service not ready: ${error.response?.status || error.message}`
+      );
     }
 
-    throw new Error("ML service did not become ready.");
-}
-
-
-async function predictImage(imageUrl) {
-
-    // Wake Render/Flask and wait for the ML service.
-    await waitForML();
-
-    console.log("Sending image to ML service...");
-
-    const response = await axios.post(
-        `${ML_SERVICE_URL}/predict-url`,
-        {
-            image_url: imageUrl
-        },
-        {
-            headers: {
-                "Content-Type": "application/json"
-            },
-            timeout: 120000
-        }
+    const elapsed = Math.round((Date.now() - startTime) / 1000);
+    const remaining = Math.max(
+      0,
+      Math.round((maxWaitTime - (Date.now() - startTime)) / 1000)
     );
 
-    console.log("ML prediction successful");
+    console.log(
+      `Waiting 10 seconds... ${elapsed}s elapsed, ${remaining}s remaining`
+    );
 
-    return response.data;
+    await new Promise((resolve) => setTimeout(resolve, checkInterval));
+
+    attempt++;
+  }
+
+  throw new Error("ML service did not become ready within 2 minutes.");
 }
-
-
-module.exports = {
-    predictImage
-};
